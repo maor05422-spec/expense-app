@@ -7,6 +7,7 @@ const NAV = [
   { href: "/dashboard", label: "דשבורד" },
   { href: "/dashboard/transactions", label: "תנועות" },
   { href: "/dashboard/import", label: "ייבוא מכרטיס אשראי" },
+  { href: "/dashboard/rules", label: "כללי סיווג" },
   { href: "/dashboard/categories", label: "קטגוריות" },
   { href: "/dashboard/recurring", label: "הוצאות קבועות" },
   { href: "/dashboard/goals", label: "יעדי חיסכון" },

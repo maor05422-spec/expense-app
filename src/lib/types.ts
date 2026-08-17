@@ -69,6 +69,14 @@ export type SavingsContribution = {
   created_at: string;
 };
 
+export type KeywordRule = {
+  id: string;
+  household_id: string;
+  keyword: string;
+  category_id: string;
+  created_at: string;
+};
+
 // טיפוס גנרי מינימלי כדי לספק ל-supabase-js; לא אוכף סכמה מלאה ברמת ה-DB client.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Database = any;

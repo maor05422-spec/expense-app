@@ -24,6 +24,7 @@ export function ImportManager({
   const [paidBy, setPaidBy] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [insertedCount, setInsertedCount] = useState(0);
+  const [learnedCount, setLearnedCount] = useState(0);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -35,7 +36,7 @@ export function ImportManager({
         setError(result.error);
         return;
       }
-      setRows(result.rows.map((r) => ({ ...r, categoryId: null, include: true })));
+      setRows(result.rows.map((r) => ({ ...r, include: true })));
       setStep("review");
     });
   }
@@ -51,6 +52,7 @@ export function ImportManager({
       try {
         const result = await confirmImport(included, paidBy || null);
         setInsertedCount(result.inserted);
+        setLearnedCount(result.learned);
         setStep("done");
         router.refresh();
       } catch {
@@ -68,6 +70,14 @@ export function ImportManager({
         <CardContent className="space-y-4 py-6 text-center">
           <p className="text-2xl">✅</p>
           <p className="font-semibold">יובאו בהצלחה {insertedCount} תנועות</p>
+          {learnedCount > 0 && (
+            <p className="text-sm text-muted">
+              נלמדו {learnedCount} בתי עסק חדשים - בפעם הבאה הם יסווגו אוטומטית.{" "}
+              <a href="/dashboard/rules" className="text-primary underline">
+                לצפייה בכללי הסיווג
+              </a>
+            </p>
+          )}
           <div className="flex justify-center gap-3">
             <Button
               onClick={() => {
@@ -187,6 +197,13 @@ export function ImportManager({
                     </option>
                   ))}
                 </Select>
+                {row.autoMatched ? (
+                  <p className="mt-1 text-xs text-primary">✓ זוהה אוטומטית</p>
+                ) : row.categoryId ? (
+                  <p className="mt-1 text-xs text-muted">ייזכר לפעם הבאה</p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted">בית עסק חדש - בחרו קטגוריה</p>
+                )}
               </div>
             </CardContent>
           </Card>
