@@ -19,17 +19,27 @@ export function RecurringManager({
   return (
     <div className="space-y-6">
       <Card>
+        <CardContent className="space-y-1 pt-4">
+          <p className="text-sm font-semibold">✓ יצירה אוטומטית פעילה</p>
+          <p className="text-xs text-muted">
+            מ{monthLabel(currentMonth)} ואילך, ברגע שמישהו מכם נכנס לאפליקציה ביום החיוב (או
+            אחריו) - התנועה נוצרת לבד, בלי צורך ללחוץ על כלום.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-4">
           <div>
-            <p className="text-sm font-semibold">יצירת תנועות ל{monthLabel(currentMonth)}</p>
+            <p className="text-sm font-semibold">השלמה ידנית ל{monthLabel(currentMonth)}</p>
             <p className="text-xs text-muted">
-              יוצר תנועה עבור כל הוצאה קבועה פעילה שעוד לא נוצרה החודש
+              רק אם רוצים ליצור תנועות עכשיו בלי לחכות ליום החיוב, או להשלים חודש שפוספס
             </p>
           </div>
           <form action={generateTransactionsForMonth}>
             <input type="hidden" name="month" value={currentMonth} />
-            <Button type="submit" size="sm">
-              צור תנועות לחודש הנוכחי
+            <Button type="submit" size="sm" variant="secondary">
+              צור תנועות עכשיו
             </Button>
           </form>
         </CardContent>
