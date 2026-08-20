@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { CategoryPie } from "@/components/charts/category-pie";
 import { MonthlyTrend } from "@/components/charts/monthly-trend";
 import { formatCurrency, monthKey, monthLabel, monthRange, shiftMonth } from "@/lib/utils";
-import type { Category } from "@/lib/types";
+import type { Category, RecurringExpense } from "@/lib/types";
 
 export default async function DashboardPage() {
   const { householdId } = await requireHousehold();
@@ -14,22 +14,34 @@ export default async function DashboardPage() {
   const currentMonth = monthKey();
   const { start, end } = monthRange(currentMonth);
 
-  const [{ data: categories }, { data: monthTx }, { data: goals }] = await Promise.all([
-    supabase.from("categories").select("*").eq("household_id", householdId),
-    supabase
-      .from("transactions")
-      .select("amount, category_id, date")
-      .eq("household_id", householdId)
-      .gte("date", start)
-      .lte("date", end),
-    supabase.from("savings_goals").select("current_amount").eq("household_id", householdId),
-  ]);
+  const [{ data: categories }, { data: monthTx }, { data: goals }, { data: members }, { data: recurring }] =
+    await Promise.all([
+      supabase.from("categories").select("*").eq("household_id", householdId),
+      supabase
+        .from("transactions")
+        .select("amount, category_id, date, paid_by")
+        .eq("household_id", householdId)
+        .gte("date", start)
+        .lte("date", end),
+      supabase.from("savings_goals").select("current_amount").eq("household_id", householdId),
+      supabase
+        .from("household_members")
+        .select("user_id, display_name")
+        .eq("household_id", householdId),
+      supabase
+        .from("recurring_expenses")
+        .select("*, categories(name, icon)")
+        .eq("household_id", householdId)
+        .eq("active", true),
+    ]);
 
   const categoriesById = new Map((categories as Category[] | null ?? []).map((c) => [c.id, c]));
+  const nameByUserId = new Map((members ?? []).map((m) => [m.user_id, m.display_name]));
 
   let totalExpenses = 0;
   let totalIncome = 0;
   const actualByCategory = new Map<string, number>();
+  const expenseByPayer = new Map<string, number>();
 
   for (const t of monthTx ?? []) {
     const cat = t.category_id ? categoriesById.get(t.category_id) : undefined;
@@ -40,8 +52,19 @@ export default async function DashboardPage() {
       if (t.category_id) {
         actualByCategory.set(t.category_id, (actualByCategory.get(t.category_id) ?? 0) + Number(t.amount));
       }
+      if (t.paid_by) {
+        expenseByPayer.set(t.paid_by, (expenseByPayer.get(t.paid_by) ?? 0) + Number(t.amount));
+      }
     }
   }
+
+  const payerBreakdown = Array.from(expenseByPayer.entries())
+    .map(([userId, amount]) => ({
+      name: nameByUserId.get(userId) ?? "לא ידוע",
+      amount,
+      pct: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   const totalSaved = (goals ?? []).reduce((s, g) => s + Number(g.current_amount), 0);
   const expenseCategories = (categories as Category[] | null ?? []).filter((c) => c.type === "expense");
@@ -50,6 +73,25 @@ export default async function DashboardPage() {
   const pieData = expenseCategories
     .map((c) => ({ name: c.name, icon: c.icon ?? "•", value: actualByCategory.get(c.id) ?? 0 }))
     .filter((c) => c.value > 0);
+
+  // באנר תזכורות: הוצאות קבועות שיגיע זמנן ב-5 הימים הקרובים + קטגוריות שחרגו מהתקציב
+  // החודש. מוצג ישירות בדשבורד בכל כניסה לאתר (בלי מייל/פוש/שירות חיצוני).
+  const todayDay = new Date().getDate();
+  const upcomingRecurring = (
+    (recurring as (RecurringExpense & { categories: Pick<Category, "name" | "icon"> | null })[] | null) ?? []
+  )
+    .map((r) => ({ ...r, dueDay: Math.min(r.day_of_month, 28) }))
+    .filter((r) => r.dueDay > todayDay && r.dueDay - todayDay <= 5)
+    .sort((a, b) => a.dueDay - b.dueDay);
+
+  const budgetAlerts = expenseCategories
+    .map((c) => ({
+      name: c.name,
+      icon: c.icon ?? "•",
+      actual: actualByCategory.get(c.id) ?? 0,
+      budget: Number(c.monthly_budget),
+    }))
+    .filter((c) => c.budget > 0 && c.actual > c.budget);
 
   // מגמת 6 חודשים אחרונים
   const months = Array.from({ length: 6 }, (_, i) => shiftMonth(currentMonth, i - 5));
@@ -81,6 +123,26 @@ export default async function DashboardPage() {
         <h1 className="text-lg font-bold">דשבורד</h1>
         <p className="text-sm text-muted">{monthLabel(currentMonth)}</p>
       </div>
+
+      {(upcomingRecurring.length > 0 || budgetAlerts.length > 0) && (
+        <Card className="border-warning/30 bg-warning/5">
+          <CardContent className="space-y-2 pt-4 text-sm">
+            {upcomingRecurring.map((r) => (
+              <p key={r.id}>
+                🔔 <span className="font-medium">{r.description}</span> ({formatCurrency(r.amount)})
+                בעוד {r.dueDay - todayDay} {r.dueDay - todayDay === 1 ? "יום" : "ימים"} - ב-
+                {r.dueDay} בחודש
+              </p>
+            ))}
+            {budgetAlerts.map((c) => (
+              <p key={c.name} className="text-danger">
+                ⚠ חריגה מהתקציב ב&quot;{c.icon} {c.name}&quot;: {formatCurrency(c.actual)} מתוך{" "}
+                {formatCurrency(c.budget)}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card>
@@ -140,6 +202,27 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {payerBreakdown.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>מי שילם הכי הרבה החודש</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {payerBreakdown.map((p) => (
+              <div key={p.name}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span>{p.name}</span>
+                  <span className="text-muted">
+                    {formatCurrency(p.amount)} · {Math.round(p.pct)}%
+                  </span>
+                </div>
+                <Progress value={p.pct} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
