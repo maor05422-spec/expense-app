@@ -23,6 +23,7 @@ export function ImportManager({
   const [rows, setRows] = useState<Row[]>([]);
   const [paidBy, setPaidBy] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [insertedCount, setInsertedCount] = useState(0);
   const [learnedCount, setLearnedCount] = useState(0);
   const [isPending, startTransition] = useTransition();
@@ -30,12 +31,14 @@ export function ImportManager({
 
   function handleParse(formData: FormData) {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await parseImportFile(formData);
       if (result.error) {
         setError(result.error);
         return;
       }
+      setWarning(result.warning ?? null);
       setRows(result.rows.map((r) => ({ ...r, include: true })));
       setStep("review");
     });
@@ -63,6 +66,7 @@ export function ImportManager({
 
   const includedCount = rows.filter((r) => r.include).length;
   const includedTotal = rows.filter((r) => r.include).reduce((s, r) => s + r.amount, 0);
+  const distinctSourceFiles = new Set(rows.map((r) => r.sourceFile)).size;
 
   if (step === "done") {
     return (
@@ -105,21 +109,23 @@ export function ImportManager({
             <p className="text-sm text-muted">
               העלו קובץ הוצאות שהורדתם מאתר חברת האשראי (Excel, CSV או PDF) - המערכת תזהה
               אוטומטית את התאריכים, התיאורים והסכומים, ותציג לכם אותם לבדיקה ואישור לפני
-              שהם נכנסים בפועל.
+              שהם נכנסים בפועל. יש שני כרטיסים באותו חודש (למשל מאסטרקארד וויזה)? אפשר
+              לבחור את שני הקבצים יחד - הם ייכנסו לאותה רשימת בדיקה אחת, ממוינת לפי תאריך.
             </p>
             <form action={handleParse} className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
-                <Label>קובץ (xlsx / csv / pdf)</Label>
+                <Label>קובץ/ים (xlsx / csv / pdf) - אפשר לבחור עד 2 יחד</Label>
                 <input
                   name="file"
                   type="file"
                   accept=".xlsx,.xls,.csv,.pdf"
+                  multiple
                   required
                   className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
                 />
               </div>
               <Button type="submit" disabled={isPending}>
-                {isPending ? "מנתח..." : "ניתוח הקובץ"}
+                {isPending ? "מנתח..." : "ניתוח הקבצים"}
               </Button>
             </form>
             {error && <p className="text-sm text-danger">{error}</p>}
@@ -135,6 +141,11 @@ export function ImportManager({
 
   return (
     <div className="space-y-4">
+      {warning && (
+        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+          {warning}
+        </p>
+      )}
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-4">
           <div>
@@ -176,6 +187,11 @@ export function ImportManager({
                   value={row.description}
                   onChange={(e) => updateRow(i, { description: e.target.value })}
                 />
+                {distinctSourceFiles > 1 && (
+                  <p className="mt-1 truncate text-xs text-muted" title={row.sourceFile}>
+                    מתוך: {row.sourceFile}
+                  </p>
+                )}
               </div>
               <div className="col-span-1 sm:col-span-2">
                 <Input

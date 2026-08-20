@@ -7,34 +7,61 @@ import { parsePdfStatement, parseSpreadsheet, type ParsedRow } from "@/lib/impor
 import { matchCategoryId } from "@/lib/keyword-rules";
 import type { KeywordRule } from "@/lib/types";
 
-export type ImportRow = ParsedRow & { categoryId: string | null; autoMatched: boolean };
-export type ParseResult = { rows: ImportRow[]; error?: string };
+export type ImportRow = ParsedRow & {
+  categoryId: string | null;
+  autoMatched: boolean;
+  sourceFile: string;
+};
+export type ParseResult = { rows: ImportRow[]; error?: string; warning?: string };
+
+async function parseOneFile(file: File): Promise<ParsedRow[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) {
+    return parsePdfStatement(Buffer.from(arrayBuffer));
+  }
+  return parseSpreadsheet(arrayBuffer);
+}
 
 /**
- * שלב 1: מקבל קובץ שהועלה (Excel/CSV/PDF) ומחזיר רשימת תנועות מזוהות לתצוגה מקדימה,
- * כשכל שורה מקבלת ניחוש קטגוריה אוטומטי לפי כללי מילות המפתח של הבית (אם קיימת התאמה).
+ * שלב 1: מקבל קובץ אחד או שניים שהועלו (Excel/CSV/PDF - למשל דוח מאסטרקארד + דוח ויזה
+ * לאותו חודש), ומחזיר רשימה מאוחדת אחת של תנועות מזוהות לתצוגה מקדימה. כל שורה מקבלת
+ * ניחוש קטגוריה אוטומטי לפי כללי מילות המפתח של הבית (אם קיימת התאמה), ותיוג לפי שם
+ * הקובץ שממנו הגיעה - כדי שיהיה קל להבחין בין הכרטיסים בתצוגה המקדימה.
  */
 export async function parseImportFile(formData: FormData): Promise<ParseResult> {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
+  const files = formData
+    .getAll("file")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+
+  if (files.length === 0) {
     return { rows: [], error: "לא נבחר קובץ" };
   }
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const name = file.name.toLowerCase();
+    const perFileResults = await Promise.all(
+      files.map(async (file) => {
+        try {
+          const parsed = await parseOneFile(file);
+          return { file, parsed, error: null as string | null };
+        } catch {
+          return { file, parsed: [] as ParsedRow[], error: file.name };
+        }
+      })
+    );
 
-    let parsed: ParsedRow[];
-    if (name.endsWith(".pdf")) {
-      parsed = await parsePdfStatement(Buffer.from(arrayBuffer));
-    } else {
-      parsed = parseSpreadsheet(arrayBuffer);
-    }
+    const failedFiles = perFileResults.filter((r) => r.error).map((r) => r.file.name);
+    const allParsed = perFileResults.flatMap((r) =>
+      r.parsed.map((p) => ({ ...p, sourceFile: r.file.name }))
+    );
 
-    if (parsed.length === 0) {
+    if (allParsed.length === 0) {
       return {
         rows: [],
-        error: "לא הצלחנו לזהות תנועות בקובץ. נסו קובץ אחר או הזינו ידנית.",
+        error:
+          failedFiles.length > 0
+            ? `לא הצלחנו לקרוא את הקובץ/ים: ${failedFiles.join(", ")}. ודאו שאלו קבצי Excel / CSV / PDF תקינים.`
+            : "לא הצלחנו לזהות תנועות בקבצים. נסו קבצים אחרים או הזינו ידנית.",
       };
     }
 
@@ -46,16 +73,25 @@ export async function parseImportFile(formData: FormData): Promise<ParseResult> 
       .eq("household_id", householdId);
     const rules = (ruleRows as KeywordRule[]) ?? [];
 
-    const rows: ImportRow[] = parsed.map((r) => {
+    const rows: ImportRow[] = allParsed.map((r) => {
       const categoryId = matchCategoryId(r.description, rules);
       return { ...r, categoryId, autoMatched: categoryId !== null };
     });
 
-    return { rows };
+    // ממיינים לפי תאריך כדי שתנועות משני הכרטיסים יוצגו בסדר כרונולוגי אחד, לא קובץ-אחרי-קובץ
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      rows,
+      warning:
+        failedFiles.length > 0
+          ? `שימו לב: לא הצלחנו לקרוא את הקובץ "${failedFiles.join(", ")}" - שאר הקבצים כן נטענו.`
+          : undefined,
+    };
   } catch {
     return {
       rows: [],
-      error: "אירעה שגיאה בקריאת הקובץ. ודאו שזהו קובץ Excel / CSV / PDF תקין.",
+      error: "אירעה שגיאה בקריאת הקבצים. ודאו שאלו קבצי Excel / CSV / PDF תקינים.",
     };
   }
 }
