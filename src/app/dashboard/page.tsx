@@ -155,6 +155,8 @@ export default async function DashboardPage() {
             const actual = actualByCategory.get(c.id) ?? 0;
             const budget = Number(c.monthly_budget);
             const pct = budget > 0 ? (actual / budget) * 100 : actual > 0 ? 100 : 0;
+            const gap = budget - actual;
+            const overBudget = budget > 0 && actual > budget;
             return (
               <div key={c.id}>
                 <div className="mb-1 flex items-center justify-between text-sm">
@@ -166,6 +168,22 @@ export default async function DashboardPage() {
                   </span>
                 </div>
                 <Progress value={pct} />
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <span className={overBudget ? "font-medium text-danger" : "text-muted"}>
+                    {budget === 0
+                      ? actual > 0
+                        ? `${formatCurrency(actual)} ללא תקציב מוגדר`
+                        : "אין תקציב מוגדר"
+                      : overBudget
+                      ? `חריגה של ${formatCurrency(Math.abs(gap))}`
+                      : `נותרו ${formatCurrency(gap)}`}
+                  </span>
+                  {budget > 0 && (
+                    <span className={overBudget ? "font-medium text-danger" : "text-muted"}>
+                      {Math.round(pct)}% מהתקציב
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
