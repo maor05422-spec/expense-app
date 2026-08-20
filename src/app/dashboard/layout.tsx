@@ -12,6 +12,7 @@ const NAV = [
   { href: "/dashboard/categories", label: "קטגוריות" },
   { href: "/dashboard/recurring", label: "הוצאות קבועות" },
   { href: "/dashboard/goals", label: "יעדי חיסכון" },
+  { href: "/dashboard/monthly-summary", label: "סיכום חודשי" },
 ];
 
 async function signOut() {
