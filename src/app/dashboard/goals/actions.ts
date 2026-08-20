@@ -31,6 +31,50 @@ export async function deleteGoal(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function addRecurringContribution(formData: FormData) {
+  const { householdId } = await requireHousehold();
+  const supabase = await createClient();
+
+  await supabase.from("recurring_contributions").insert({
+    household_id: householdId,
+    goal_id: String(formData.get("goal_id") || ""),
+    amount: Number(formData.get("amount") || 0),
+    day_of_month: Number(formData.get("day_of_month") || 1),
+    active: true,
+  });
+
+  revalidatePath("/dashboard/goals");
+}
+
+export async function toggleRecurringContribution(formData: FormData) {
+  const { householdId } = await requireHousehold();
+  const supabase = await createClient();
+  const id = String(formData.get("id"));
+  const active = String(formData.get("active")) === "true";
+
+  await supabase
+    .from("recurring_contributions")
+    .update({ active: !active })
+    .eq("id", id)
+    .eq("household_id", householdId);
+
+  revalidatePath("/dashboard/goals");
+}
+
+export async function deleteRecurringContribution(formData: FormData) {
+  const { householdId } = await requireHousehold();
+  const supabase = await createClient();
+  const id = String(formData.get("id"));
+
+  await supabase
+    .from("recurring_contributions")
+    .delete()
+    .eq("id", id)
+    .eq("household_id", householdId);
+
+  revalidatePath("/dashboard/goals");
+}
+
 export async function addContribution(formData: FormData) {
   const { householdId, user } = await requireHousehold();
   const supabase = await createClient();

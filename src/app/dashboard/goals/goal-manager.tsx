@@ -1,16 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import type { SavingsGoal } from "@/lib/types";
-import { addGoal, deleteGoal, addContribution } from "./actions";
+import type { SavingsGoal, RecurringContribution } from "@/lib/types";
+import {
+  addGoal,
+  deleteGoal,
+  addContribution,
+  addRecurringContribution,
+  toggleRecurringContribution,
+  deleteRecurringContribution,
+} from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input, Label, Select } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-export function GoalManager({ goals }: { goals: SavingsGoal[] }) {
+export function GoalManager({
+  goals,
+  recurringContributions,
+}: {
+  goals: SavingsGoal[];
+  recurringContributions: RecurringContribution[];
+}) {
   const [openContribution, setOpenContribution] = useState<string | null>(null);
+  const goalsById = new Map(goals.map((g) => [g.id, g]));
 
   return (
     <div className="space-y-6">
@@ -40,6 +54,95 @@ export function GoalManager({ goals }: { goals: SavingsGoal[] }) {
           </form>
         </CardContent>
       </Card>
+
+      {goals.length > 0 && (
+        <>
+          <Card>
+            <CardContent className="space-y-1 pt-4">
+              <p className="text-sm font-semibold">✓ הפקדות אוטומטיות</p>
+              <p className="text-xs text-muted">
+                אפשר להגדיר הפקדה חודשית קבועה ליעד חיסכון - ברגע שמישהו מכם נכנס לאפליקציה
+                ביום שהוגדר (או אחריו), ההפקדה נכנסת לבד ליעד, בלי צורך ללחוץ על כלום.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <h2 className="mb-3 text-sm font-semibold">הפקדה אוטומטית חדשה</h2>
+              <form
+                action={addRecurringContribution}
+                className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end"
+              >
+                <div>
+                  <Label>יעד</Label>
+                  <Select name="goal_id" required defaultValue="">
+                    <option value="" disabled>
+                      בחרו יעד...
+                    </option>
+                    {goals.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.icon} {g.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label>סכום חודשי (₪)</Label>
+                  <Input name="amount" type="number" step="1" min="1" required />
+                </div>
+                <div>
+                  <Label>יום הפקדה בחודש</Label>
+                  <Input name="day_of_month" type="number" min="1" max="28" defaultValue={1} required />
+                </div>
+                <Button type="submit" size="sm">
+                  הוספה
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {recurringContributions.length > 0 && (
+            <div className="space-y-2">
+              {recurringContributions.map((r) => {
+                const goal = goalsById.get(r.goal_id);
+                return (
+                  <Card key={r.id}>
+                    <CardContent className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{goal?.icon ?? "🎯"}</span>
+                        <div>
+                          <p className="font-medium">{goal?.name ?? "יעד שנמחק"}</p>
+                          <p className="text-xs text-muted">
+                            כל {r.day_of_month} בחודש
+                            {!r.active ? " · מושהה" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold">{formatCurrency(r.amount)}</span>
+                        <form action={toggleRecurringContribution}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="active" value={String(r.active)} />
+                          <Button variant="secondary" size="sm" type="submit">
+                            {r.active ? "השהיה" : "הפעלה"}
+                          </Button>
+                        </form>
+                        <form action={deleteRecurringContribution}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <Button variant="danger" size="sm" type="submit">
+                            מחיקה
+                          </Button>
+                        </form>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {goals.length === 0 && (

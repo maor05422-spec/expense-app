@@ -34,7 +34,20 @@ export default async function TransactionsPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-bold">תנועות</h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-lg font-bold">תנועות</h1>
+        <div className="flex gap-3 text-sm">
+          <a
+            href={`/api/export/transactions?month=${month}`}
+            className="text-primary underline"
+          >
+            ייצוא החודש ל-CSV
+          </a>
+          <a href="/api/export/transactions" className="text-primary underline">
+            ייצוא כל התנועות
+          </a>
+        </div>
+      </div>
       <MonthNav basePath="/dashboard/transactions" month={month} />
       <TransactionManager
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

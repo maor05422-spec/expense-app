@@ -66,6 +66,17 @@ export type SavingsContribution = {
   amount: number;
   date: string;
   user_id: string | null;
+  recurring_contribution_id: string | null;
+  created_at: string;
+};
+
+export type RecurringContribution = {
+  id: string;
+  household_id: string;
+  goal_id: string;
+  amount: number;
+  day_of_month: number;
+  active: boolean;
   created_at: string;
 };
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireHousehold } from "@/lib/household";
 import { createClient } from "@/lib/supabase/server";
 import { ensureRecurringGeneratedForToday } from "@/lib/recurring-auto";
+import { ensureRecurringContributionsGeneratedForToday } from "@/lib/recurring-contributions-auto";
 import { redirect } from "next/navigation";
 
 const NAV = [
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
 
   const supabase = await createClient();
   await ensureRecurringGeneratedForToday(supabase, householdId);
+  await ensureRecurringContributionsGeneratedForToday(supabase, householdId);
 
   return (
     <div className="min-h-screen">
