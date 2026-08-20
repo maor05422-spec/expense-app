@@ -26,12 +26,15 @@ export function ImportManager({
   const [warning, setWarning] = useState<string | null>(null);
   const [insertedCount, setInsertedCount] = useState(0);
   const [learnedCount, setLearnedCount] = useState(0);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   function handleParse(formData: FormData) {
     setError(null);
     setWarning(null);
+    setSelected(new Set());
     startTransition(async () => {
       const result = await parseImportFile(formData);
       if (result.error) {
@@ -67,6 +70,29 @@ export function ImportManager({
   const includedCount = rows.filter((r) => r.include).length;
   const includedTotal = rows.filter((r) => r.include).reduce((s, r) => s + r.amount, 0);
   const distinctSourceFiles = new Set(rows.map((r) => r.sourceFile)).size;
+  const allSelected = rows.length > 0 && selected.size === rows.length;
+
+  function toggleSelectAll() {
+    setSelected(allSelected ? new Set() : new Set(rows.map((_, i) => i)));
+  }
+
+  function toggleSelectRow(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  function applyBulkCategory() {
+    if (!bulkCategoryId || selected.size === 0) return;
+    setRows((prev) =>
+      prev.map((r, i) => (selected.has(i) ? { ...r, categoryId: bulkCategoryId } : r))
+    );
+    setSelected(new Set());
+    setBulkCategoryId("");
+  }
 
   if (step === "done") {
     return (
@@ -165,16 +191,63 @@ export function ImportManager({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 py-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              className="h-4 w-4"
+            />
+            בחר הכל
+          </label>
+          <p className="text-sm text-muted">נבחרו {selected.size} שורות לעריכה קבוצתית</p>
+          <div className="flex flex-1 flex-wrap items-end gap-2">
+            <div className="min-w-[10rem]">
+              <Label>שייך קטגוריה לנבחרים</Label>
+              <Select value={bulkCategoryId} onChange={(e) => setBulkCategoryId(e.target.value)}>
+                <option value="">בחרו קטגוריה...</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={applyBulkCategory}
+              disabled={!bulkCategoryId || selected.size === 0}
+            >
+              שייך ל-{selected.size} שורות
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="space-y-2">
         {rows.map((row, i) => (
           <Card key={i} className={row.include ? "" : "opacity-50"}>
             <CardContent className="grid grid-cols-2 items-center gap-2 py-3 sm:grid-cols-12">
-              <input
-                type="checkbox"
-                checked={row.include}
-                onChange={(e) => updateRow(i, { include: e.target.checked })}
-                className="col-span-2 h-4 w-4 sm:col-span-1"
-              />
+              <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
+                <input
+                  type="checkbox"
+                  checked={row.include}
+                  onChange={(e) => updateRow(i, { include: e.target.checked })}
+                  className="h-4 w-4"
+                  title="לכלול בייבוא"
+                />
+                <input
+                  type="checkbox"
+                  checked={selected.has(i)}
+                  onChange={() => toggleSelectRow(i)}
+                  className="h-4 w-4"
+                  title="בחירה לעריכה קבוצתית"
+                />
+              </div>
               <div className="col-span-2 sm:col-span-2">
                 <Input
                   type="date"
